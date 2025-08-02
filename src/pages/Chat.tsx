@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Image, User, Plus, Settings, LogOut } from 'lucide-react';
+import { Send, Image, User, Plus, Settings, LogOut, UserPlus } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -31,6 +32,14 @@ interface Conversation {
   created_at: string;
 }
 
+interface Profile {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+}
+
 const Chat = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -40,6 +49,9 @@ const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [searchUsers, setSearchUsers] = useState('');
+  const [foundUsers, setFoundUsers] = useState<Profile[]>([]);
+  const [showAddUser, setShowAddUser] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -157,6 +169,8 @@ const Chat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedConversation) return;
 
+    console.log('Sending message:', { conversation_id: selectedConversation, sender_id: user?.id, content: newMessage });
+    
     setIsLoading(true);
     try {
       const { error } = await supabase
@@ -168,10 +182,15 @@ const Chat = () => {
           message_type: 'text'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Message send error:', error);
+        throw error;
+      }
 
+      console.log('Message sent successfully');
       setNewMessage('');
     } catch (error: any) {
+      console.error('Send message failed:', error);
       toast({
         title: "Failed to send message",
         description: error.message,
@@ -218,6 +237,94 @@ const Chat = () => {
     } catch (error: any) {
       toast({
         title: "Failed to send image",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const searchForUsers = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setFoundUsers([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .or(`username.ilike.%${searchTerm}%,display_name.ilike.%${searchTerm}%`)
+        .neq('user_id', user?.id)
+        .limit(10);
+
+      if (error) throw error;
+      setFoundUsers(data || []);
+    } catch (error: any) {
+      console.error('User search error:', error);
+      toast({
+        title: "Search failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const createConversationWithUser = async (otherUser: Profile) => {
+    try {
+      console.log('Creating conversation with user:', otherUser);
+      
+      const { data: conversation, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          name: `Chat with ${otherUser.display_name}`,
+          is_group: false,
+          created_by: user?.id
+        })
+        .select()
+        .single();
+
+      if (convError) {
+        console.error('Conversation creation error:', convError);
+        throw convError;
+      }
+
+      console.log('Created conversation:', conversation);
+
+      // Add both users as participants
+      const { error: participantError } = await supabase
+        .from('conversation_participants')
+        .insert([
+          {
+            conversation_id: conversation.id,
+            user_id: user?.id
+          },
+          {
+            conversation_id: conversation.id,
+            user_id: otherUser.user_id
+          }
+        ]);
+
+      if (participantError) {
+        console.error('Participant add error:', participantError);
+        throw participantError;
+      }
+
+      console.log('Added participants successfully');
+      
+      toast({
+        title: "Chat created",
+        description: `Started a chat with ${otherUser.display_name}`
+      });
+
+      setShowAddUser(false);
+      setSearchUsers('');
+      setFoundUsers([]);
+      fetchConversations();
+      setSelectedConversation(conversation.id);
+    } catch (error: any) {
+      console.error('Failed to create conversation:', error);
+      toast({
+        title: "Failed to create chat",
         description: error.message,
         variant: "destructive"
       });
@@ -304,9 +411,64 @@ const Chat = () => {
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Conversations</h2>
-              <Button size="sm" onClick={createConversation}>
-                <Plus className="h-4 w-4" />
-              </Button>
+              <div className="flex space-x-2">
+                <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Start a chat with someone</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <Input
+                        placeholder="Search users by username or name..."
+                        value={searchUsers}
+                        onChange={(e) => {
+                          setSearchUsers(e.target.value);
+                          searchForUsers(e.target.value);
+                        }}
+                      />
+                      <ScrollArea className="h-60">
+                        <div className="space-y-2">
+                          {foundUsers.map((profile) => (
+                            <Card 
+                              key={profile.id} 
+                              className="cursor-pointer hover:bg-muted"
+                              onClick={() => createConversationWithUser(profile)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-center space-x-3">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={profile.avatar_url} />
+                                    <AvatarFallback>
+                                      <User className="h-4 w-4" />
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <p className="font-medium">{profile.display_name}</p>
+                                    <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                          {searchUsers && foundUsers.length === 0 && (
+                            <p className="text-center text-muted-foreground py-4">
+                              No users found
+                            </p>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button size="sm" onClick={createConversation}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
           <ScrollArea className="h-[calc(100vh-141px)]">
