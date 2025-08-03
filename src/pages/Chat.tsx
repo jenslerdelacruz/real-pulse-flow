@@ -4,12 +4,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Image, User, Plus, Settings, LogOut, UserPlus } from 'lucide-react';
+import { Send, Image, User, Plus, Settings, LogOut, UserPlus, Menu, ArrowLeft } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Message {
   id: string;
@@ -30,6 +31,7 @@ interface Conversation {
   name?: string;
   is_group: boolean;
   created_at: string;
+  participants?: Profile[];
 }
 
 interface Profile {
@@ -38,6 +40,7 @@ interface Profile {
   username: string;
   display_name: string;
   avatar_url?: string;
+  last_seen?: string;
 }
 
 const Chat = () => {
@@ -52,11 +55,16 @@ const Chat = () => {
   const [searchUsers, setSearchUsers] = useState('');
   const [foundUsers, setFoundUsers] = useState<Profile[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       fetchConversations();
+      updateUserPresence();
+      subscribeToPresence();
     }
   }, [user]);
 
@@ -64,6 +72,7 @@ const Chat = () => {
     if (selectedConversation) {
       fetchMessages();
       subscribeToMessages();
+      setShowSidebar(false); // Hide sidebar on mobile when conversation is selected
     }
   }, [selectedConversation]);
 
@@ -75,13 +84,67 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const updateUserPresence = async () => {
+    if (!user) return;
+    
+    try {
+      await supabase
+        .from('profiles')
+        .update({ last_seen: new Date().toISOString() })
+        .eq('user_id', user.id);
+    } catch (error) {
+      console.error('Error updating presence:', error);
+    }
+  };
+
+  const subscribeToPresence = () => {
+    const channel = supabase
+      .channel('presence')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles'
+        },
+        () => {
+          fetchOnlineUsers();
+        }
+      )
+      .subscribe();
+
+    fetchOnlineUsers();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
+
+  const fetchOnlineUsers = async () => {
+    try {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .gte('last_seen', fiveMinutesAgo);
+
+      setOnlineUsers(new Set(data?.map(p => p.user_id) || []));
+    } catch (error) {
+      console.error('Error fetching online users:', error);
+    }
+  };
+
+  const isUserOnline = (userId: string) => {
+    return onlineUsers.has(userId);
+  };
+
   const fetchConversations = async () => {
     try {
       const { data, error } = await supabase
         .from('conversation_participants')
         .select(`
           conversation_id,
-          conversations (
+          conversations!inner (
             id,
             name,
             is_group,
@@ -93,10 +156,33 @@ const Chat = () => {
       if (error) throw error;
 
       const convos = data?.map(item => item.conversations).filter(Boolean) || [];
-      setConversations(convos);
       
-      if (convos.length > 0 && !selectedConversation) {
-        setSelectedConversation(convos[0].id);
+      // Fetch participants for each conversation
+      const conversationsWithParticipants: Conversation[] = await Promise.all(
+        convos.map(async (conv: any) => {
+          const { data: participantData } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conv.id);
+
+          const userIds = participantData?.map(p => p.user_id) || [];
+          
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, user_id, username, display_name, avatar_url, last_seen')
+            .in('user_id', userIds);
+
+          return {
+            ...conv,
+            participants: profilesData || []
+          } as Conversation;
+        })
+      );
+
+      setConversations(conversationsWithParticipants);
+      
+      if (conversationsWithParticipants.length > 0 && !selectedConversation) {
+        setSelectedConversation(conversationsWithParticipants[0].id);
       }
     } catch (error: any) {
       toast({
@@ -169,10 +255,10 @@ const Chat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedConversation) return;
 
-    console.log('Sending message:', { conversation_id: selectedConversation, sender_id: user?.id, content: newMessage });
-    
     setIsLoading(true);
     try {
+      await updateUserPresence(); // Update presence when sending message
+
       const { error } = await supabase
         .from('messages')
         .insert({
@@ -182,15 +268,10 @@ const Chat = () => {
           message_type: 'text'
         });
 
-      if (error) {
-        console.error('Message send error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('Message sent successfully');
       setNewMessage('');
     } catch (error: any) {
-      console.error('Send message failed:', error);
       toast({
         title: "Failed to send message",
         description: error.message,
@@ -205,7 +286,28 @@ const Chat = () => {
     const file = e.target.files?.[0];
     if (!file || !selectedConversation) return;
 
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 10MB.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
     try {
+      await updateUserPresence(); // Update presence when uploading
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
 
@@ -240,6 +342,11 @@ const Chat = () => {
         description: error.message,
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -271,8 +378,6 @@ const Chat = () => {
 
   const createConversationWithUser = async (otherUser: Profile) => {
     try {
-      console.log('Creating conversation with user:', otherUser);
-      
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -283,12 +388,7 @@ const Chat = () => {
         .select()
         .single();
 
-      if (convError) {
-        console.error('Conversation creation error:', convError);
-        throw convError;
-      }
-
-      console.log('Created conversation:', conversation);
+      if (convError) throw convError;
 
       // Add both users as participants
       const { error: participantError } = await supabase
@@ -304,13 +404,8 @@ const Chat = () => {
           }
         ]);
 
-      if (participantError) {
-        console.error('Participant add error:', participantError);
-        throw participantError;
-      }
+      if (participantError) throw participantError;
 
-      console.log('Added participants successfully');
-      
       toast({
         title: "Chat created",
         description: `Started a chat with ${otherUser.display_name}`
@@ -322,43 +417,8 @@ const Chat = () => {
       fetchConversations();
       setSelectedConversation(conversation.id);
     } catch (error: any) {
-      console.error('Failed to create conversation:', error);
       toast({
         title: "Failed to create chat",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
-
-  const createConversation = async () => {
-    try {
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          name: 'New Chat',
-          is_group: false,
-          created_by: user?.id
-        })
-        .select()
-        .single();
-
-      if (convError) throw convError;
-
-      const { error: participantError } = await supabase
-        .from('conversation_participants')
-        .insert({
-          conversation_id: conversation.id,
-          user_id: user?.id
-        });
-
-      if (participantError) throw participantError;
-
-      fetchConversations();
-      setSelectedConversation(conversation.id);
-    } catch (error: any) {
-      toast({
-        title: "Failed to create conversation",
         description: error.message,
         variant: "destructive"
       });
@@ -378,10 +438,96 @@ const Chat = () => {
     }
   };
 
+  const getConversationName = (conversation: Conversation) => {
+    if (conversation.name && conversation.is_group) {
+      return conversation.name;
+    }
+    
+    const otherParticipant = conversation.participants?.find(
+      p => p.user_id !== user?.id
+    );
+    
+    return otherParticipant?.display_name || 'Unknown User';
+  };
+
+  const getCurrentConversation = () => {
+    return conversations.find(c => c.id === selectedConversation);
+  };
+
+  const selectedConv = getCurrentConversation();
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-background p-4">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Mobile Header */}
+      <div className="lg:hidden border-b border-border bg-background p-3 flex items-center justify-between">
+        {selectedConversation ? (
+          <>
+            <div className="flex items-center space-x-3">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setSelectedConversation(null)}
+                className="p-1"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center space-x-2">
+                <div className="relative">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={selectedConv?.participants?.find(p => p.user_id !== user?.id)?.avatar_url} />
+                    <AvatarFallback>
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
+                    p.user_id !== user?.id && isUserOnline(p.user_id)
+                  ) && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="font-medium text-sm">{getConversationName(selectedConv!)}</h2>
+                  {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
+                    p.user_id !== user?.id && isUserOnline(p.user_id)
+                  ) && (
+                    <p className="text-xs text-green-600">Online</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <h1 className="text-lg font-semibold">ChatApp</h1>
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate('/dashboard')}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={handleSignOut}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden lg:block border-b border-border bg-background p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">ChatApp</h1>
           <div className="flex items-center space-x-2">
@@ -405,9 +551,12 @@ const Chat = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex bg-background">
-        {/* Sidebar */}
-        <div className="w-80 border-r border-border bg-muted/50">
+      <div className="flex-1 flex bg-background overflow-hidden">
+        {/* Sidebar - Desktop Always Visible, Mobile Conditional */}
+        <div className={`
+          lg:w-80 lg:block border-r border-border bg-muted/30
+          ${selectedConversation ? 'hidden lg:block' : 'w-full block'}
+        `}>
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Conversations</h2>
@@ -418,7 +567,7 @@ const Chat = () => {
                       <UserPlus className="h-4 w-4" />
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="mx-4">
                     <DialogHeader>
                       <DialogTitle>Start a chat with someone</DialogTitle>
                     </DialogHeader>
@@ -441,14 +590,24 @@ const Chat = () => {
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-center space-x-3">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarImage src={profile.avatar_url} />
-                                    <AvatarFallback>
-                                      <User className="h-4 w-4" />
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-medium">{profile.display_name}</p>
+                                  <div className="relative">
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={profile.avatar_url} />
+                                      <AvatarFallback>
+                                        <User className="h-4 w-4" />
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    {isUserOnline(profile.user_id) && (
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2">
+                                      <p className="font-medium">{profile.display_name}</p>
+                                      {isUserOnline(profile.user_id) && (
+                                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">Online</Badge>
+                                      )}
+                                    </div>
                                     <p className="text-sm text-muted-foreground">@{profile.username}</p>
                                   </div>
                                 </div>
@@ -465,132 +624,194 @@ const Chat = () => {
                     </div>
                   </DialogContent>
                 </Dialog>
-                <Button size="sm" onClick={createConversation}>
-                  <Plus className="h-4 w-4" />
-                </Button>
               </div>
             </div>
           </div>
-          <ScrollArea className="h-[calc(100vh-141px)]">
+          <ScrollArea className="h-[calc(100vh-141px)] lg:h-[calc(100vh-141px)]">
             <div className="p-2 space-y-2">
-              {conversations.map((conversation) => (
-                <Card
-                  key={conversation.id}
-                  className={`cursor-pointer transition-colors ${
-                    selectedConversation === conversation.id
-                      ? 'bg-primary/10 border-primary'
-                      : 'hover:bg-muted'
-                  }`}
-                  onClick={() => setSelectedConversation(conversation.id)}
-                >
-                  <CardContent className="p-3">
-                    <h3 className="font-medium">
-                      {conversation.name || 'Unnamed Chat'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {conversation.is_group ? 'Group Chat' : 'Direct Message'}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+              {conversations.map((conversation) => {
+                const otherParticipant = conversation.participants?.find(
+                  p => p.user_id !== user?.id
+                );
+                const isOnline = otherParticipant && isUserOnline(otherParticipant.user_id);
+                
+                return (
+                  <Card
+                    key={conversation.id}
+                    className={`cursor-pointer transition-colors ${
+                      selectedConversation === conversation.id
+                        ? 'bg-primary/10 border-primary'
+                        : 'hover:bg-muted'
+                    }`}
+                    onClick={() => setSelectedConversation(conversation.id)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="relative">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={otherParticipant?.avatar_url} />
+                            <AvatarFallback>
+                              <User className="h-5 w-5" />
+                            </AvatarFallback>
+                          </Avatar>
+                          {!conversation.is_group && isOnline && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-medium truncate">
+                              {getConversationName(conversation)}
+                            </h3>
+                            {!conversation.is_group && isOnline && (
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 ml-2">
+                                Online
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {conversation.is_group ? 'Group Chat' : 'Direct Message'}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </ScrollArea>
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
-        {selectedConversation ? (
-          <>
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${
-                      message.sender_id === user?.id ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
+        <div className={`
+          flex-1 flex flex-col
+          ${!selectedConversation ? 'hidden lg:flex' : 'flex'}
+        `}>
+          {selectedConversation ? (
+            <>
+              {/* Desktop Chat Header */}
+              <div className="hidden lg:block border-b border-border p-4">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={selectedConv?.participants?.find(p => p.user_id !== user?.id)?.avatar_url} />
+                      <AvatarFallback>
+                        <User className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
+                      p.user_id !== user?.id && isUserOnline(p.user_id)
+                    ) && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="font-semibold">{getConversationName(selectedConv!)}</h2>
+                    {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
+                      p.user_id !== user?.id && isUserOnline(p.user_id)
+                    ) && (
+                      <p className="text-sm text-green-600">Online</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                  {messages.map((message) => (
                     <div
-                      className={`flex max-w-[70%] ${
-                        message.sender_id === user?.id
-                          ? 'flex-row-reverse'
-                          : 'flex-row'
+                      key={message.id}
+                      className={`flex ${
+                        message.sender_id === user?.id ? 'justify-end' : 'justify-start'
                       }`}
                     >
-                      <Avatar className="h-8 w-8 mx-2">
-                        <AvatarImage src={message.sender_profile?.avatar_url} />
-                        <AvatarFallback>
-                          <User className="h-4 w-4" />
-                        </AvatarFallback>
-                      </Avatar>
                       <div
-                        className={`rounded-lg p-3 ${
+                        className={`flex max-w-[85%] sm:max-w-[70%] ${
                           message.sender_id === user?.id
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted'
+                            ? 'flex-row-reverse'
+                            : 'flex-row'
                         }`}
                       >
-                        <p className="text-xs opacity-70 mb-1">
-                          {message.sender_profile?.display_name}
-                        </p>
-                        {message.message_type === 'text' ? (
-                          <p>{message.content}</p>
-                        ) : (
-                          <img
-                            src={message.image_url}
-                            alt="Shared image"
-                            className="max-w-full h-auto rounded"
-                          />
-                        )}
-                        <p className="text-xs opacity-70 mt-1">
-                          {new Date(message.created_at).toLocaleTimeString()}
-                        </p>
+                        <Avatar className="h-8 w-8 mx-2 flex-shrink-0">
+                          <AvatarImage src={message.sender_profile?.avatar_url} />
+                          <AvatarFallback>
+                            <User className="h-4 w-4" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div
+                          className={`rounded-lg p-3 ${
+                            message.sender_id === user?.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted'
+                          }`}
+                        >
+                          <p className="text-xs opacity-70 mb-1">
+                            {message.sender_profile?.display_name}
+                          </p>
+                          {message.message_type === 'text' ? (
+                            <p className="break-words">{message.content}</p>
+                          ) : (
+                            <img
+                              src={message.image_url}
+                              alt="Shared image"
+                              className="max-w-full max-h-64 h-auto rounded cursor-pointer"
+                              onClick={() => window.open(message.image_url, '_blank')}
+                            />
+                          )}
+                          <p className="text-xs opacity-70 mt-1">
+                            {new Date(message.created_at).toLocaleTimeString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
 
-            {/* Message Input */}
-            <div className="p-4 border-t border-border">
-              <form onSubmit={sendMessage} className="flex items-center space-x-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  disabled={isLoading}
-                  className="flex-1"
-                />
-                <label className="cursor-pointer">
+              {/* Message Input */}
+              <div className="p-4 border-t border-border">
+                <form onSubmit={sendMessage} className="flex items-center space-x-2">
                   <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    disabled={isLoading}
+                    className="flex-1"
+                  />
+                  <input
+                    ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={uploadImage}
                     className="hidden"
                   />
-                  <Button type="button" size="icon" variant="outline">
+                  <Button 
+                    type="button" 
+                    size="icon" 
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                  >
                     <Image className="h-4 w-4" />
                   </Button>
-                </label>
-                <Button type="submit" disabled={isLoading || !newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
+                  <Button type="submit" disabled={isLoading || !newMessage.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h3 className="text-lg font-medium">Select a conversation</h3>
+                <p className="text-muted-foreground">
+                  Choose a conversation to start chatting
+                </p>
+              </div>
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <h3 className="text-lg font-medium">Select a conversation</h3>
-              <p className="text-muted-foreground">
-                Choose a conversation to start chatting
-              </p>
-            </div>
-          </div>
-        )}
+          )}
         </div>
       </div>
     </div>
