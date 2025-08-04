@@ -1,15 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
-import DailyIframe from '@daily-co/daily-js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Video, VideoOff, Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { Video, VideoOff, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface VideoCallProps {
   isOpen: boolean;
   onClose: () => void;
   roomUrl?: string;
   onRoomCreated?: (roomUrl: string) => void;
+}
+
+declare global {
+  interface Window {
+    JitsiMeetExternalAPI: any;
+  }
 }
 
 export const VideoCall: React.FC<VideoCallProps> = ({
@@ -19,134 +24,147 @@ export const VideoCall: React.FC<VideoCallProps> = ({
   onRoomCreated
 }) => {
   const { toast } = useToast();
-  const callFrameRef = useRef<HTMLDivElement>(null);
-  const [callFrame, setCallFrame] = useState<any>(null);
+  const jitsiContainerRef = useRef<HTMLDivElement>(null);
+  const [api, setApi] = useState<any>(null);
   const [isJoined, setIsJoined] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
   const [participants, setParticipants] = useState<any[]>([]);
 
-  const createRoom = async () => {
-    try {
-      // For demo purposes, we'll use a simple room name
-      // In production, you'd create rooms via Daily.co REST API
-      const roomName = `demo-room-${Date.now()}`;
-      const tempRoomUrl = `https://lovable.daily.co/${roomName}`;
-      
-      if (onRoomCreated) {
-        onRoomCreated(tempRoomUrl);
-      }
-      
-      return tempRoomUrl;
-    } catch (error) {
-      console.error('Error creating room:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create video call room",
-        variant: "destructive",
-      });
-      return null;
+  const createRoom = () => {
+    const roomName = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const jitsiRoomUrl = `https://meet.jit.si/${roomName}`;
+    
+    if (onRoomCreated) {
+      onRoomCreated(jitsiRoomUrl);
+    }
+    
+    return roomName;
+  };
+
+  const initJitsi = (roomName: string) => {
+    if (!jitsiContainerRef.current) return;
+
+    // Load Jitsi Meet API script if not already loaded
+    if (!window.JitsiMeetExternalAPI) {
+      const script = document.createElement('script');
+      script.src = 'https://meet.jit.si/external_api.js';
+      script.async = true;
+      script.onload = () => {
+        startJitsiMeeting(roomName);
+      };
+      document.head.appendChild(script);
+    } else {
+      startJitsiMeeting(roomName);
     }
   };
 
-  const joinCall = async (url: string) => {
-    if (!callFrameRef.current) return;
+  const startJitsiMeeting = (roomName: string) => {
+    if (!jitsiContainerRef.current || !window.JitsiMeetExternalAPI) return;
 
-    try {
-      // For demo purposes, we'll create a simple meeting room
-      const frame = DailyIframe.createFrame(callFrameRef.current, {
-        showLeaveButton: false,
-        iframeStyle: {
-          width: '100%',
-          height: '400px',
-          border: 'none',
-          borderRadius: '8px',
-        },
-      });
+    const options = {
+      roomName: roomName,
+      width: '100%',
+      height: 400,
+      parentNode: jitsiContainerRef.current,
+      configOverwrite: {
+        startWithAudioMuted: false,
+        startWithVideoMuted: false,
+        enableWelcomePage: false,
+        prejoinPageEnabled: false,
+      },
+      interfaceConfigOverwrite: {
+        TOOLBAR_BUTTONS: [
+          'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+          'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
+          'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
+          'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
+          'tileview', 'download', 'help', 'mute-everyone', 'security'
+        ],
+        SHOW_JITSI_WATERMARK: false,
+        SHOW_WATERMARK_FOR_GUESTS: false,
+      }
+    };
 
-      frame.on('joined-meeting', () => {
+    const jitsiApi = new window.JitsiMeetExternalAPI('meet.jit.si', options);
+    
+    jitsiApi.addEventListener('participantJoined', (participant: any) => {
+      setParticipants(prev => [...prev, participant]);
+      if (!isJoined) {
         setIsJoined(true);
         toast({
           title: "Joined call",
           description: "You've successfully joined the video call",
         });
-      });
+      }
+    });
 
-      frame.on('left-meeting', () => {
-        setIsJoined(false);
-        onClose();
-      });
+    jitsiApi.addEventListener('participantLeft', (participant: any) => {
+      setParticipants(prev => prev.filter(p => p.id !== participant.id));
+    });
 
-      frame.on('participant-joined', (event: any) => {
-        setParticipants(prev => [...prev, event.participant]);
-      });
-
-      frame.on('participant-left', (event: any) => {
-        setParticipants(prev => prev.filter(p => p.session_id !== event.participant.session_id));
-      });
-
-      frame.on('error', (event: any) => {
-        console.error('Daily error:', event);
-        toast({
-          title: "Call error",
-          description: "Something went wrong with the video call",
-          variant: "destructive",
-        });
-      });
-
-      // Use Daily's demo domain for testing
-      const demoUrl = `https://lovable.daily.co/demo-${Date.now()}`;
-      await frame.join({ url: demoUrl });
-      setCallFrame(frame);
-      
-    } catch (error) {
-      console.error('Error joining call:', error);
+    jitsiApi.addEventListener('videoConferenceJoined', () => {
+      setIsJoined(true);
       toast({
-        title: "Error",
-        description: "Failed to join video call",
-        variant: "destructive",
+        title: "Joined call",
+        description: "You've successfully joined the video call",
       });
-    }
+    });
+
+    jitsiApi.addEventListener('videoConferenceLeft', () => {
+      setIsJoined(false);
+      onClose();
+    });
+
+    jitsiApi.addEventListener('audioMuteStatusChanged', (event: any) => {
+      setIsMicOn(!event.muted);
+    });
+
+    jitsiApi.addEventListener('videoMuteStatusChanged', (event: any) => {
+      setIsCameraOn(!event.muted);
+    });
+
+    setApi(jitsiApi);
   };
 
   const leaveCall = () => {
-    if (callFrame) {
-      callFrame.leave();
-      callFrame.destroy();
-      setCallFrame(null);
+    if (api) {
+      api.dispose();
+      setApi(null);
     }
     setIsJoined(false);
     onClose();
   };
 
   const toggleCamera = () => {
-    if (callFrame) {
-      callFrame.setLocalVideo(!isCameraOn);
-      setIsCameraOn(!isCameraOn);
+    if (api) {
+      api.executeCommand('toggleVideo');
     }
   };
 
   const toggleMic = () => {
-    if (callFrame) {
-      callFrame.setLocalAudio(!isMicOn);
-      setIsMicOn(!isMicOn);
+    if (api) {
+      api.executeCommand('toggleAudio');
     }
   };
 
   useEffect(() => {
     if (isOpen) {
-      const initCall = async () => {
-        const url = roomUrl || await createRoom();
-        if (url) {
-          await joinCall(url);
-        }
-      };
-      initCall();
+      let roomName: string;
+      if (roomUrl) {
+        // Extract room name from Jitsi URL
+        const urlParts = roomUrl.split('/');
+        roomName = urlParts[urlParts.length - 1];
+      } else {
+        roomName = createRoom();
+      }
+      
+      initJitsi(roomName);
     }
 
     return () => {
-      if (callFrame) {
-        callFrame.destroy();
+      if (api) {
+        api.dispose();
       }
     };
   }, [isOpen, roomUrl]);
@@ -167,7 +185,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         </DialogHeader>
         
         <div className="space-y-4">
-          <div ref={callFrameRef} className="w-full h-[400px] bg-secondary rounded-lg" />
+          <div ref={jitsiContainerRef} className="w-full h-[400px] bg-secondary rounded-lg" />
           
           {isJoined && (
             <div className="flex justify-center gap-4">
