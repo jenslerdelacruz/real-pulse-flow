@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Image, User, Plus, Settings, LogOut, UserPlus, Menu, ArrowLeft } from 'lucide-react';
+import { Send, Image, User, Plus, Settings, LogOut, UserPlus, Menu, ArrowLeft, Video } from 'lucide-react';
+import { VideoCall } from '@/components/VideoCall';
 import { Badge } from '@/components/ui/badge';
 
 interface Message {
@@ -57,6 +58,8 @@ const Chat = () => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [videoCallUrl, setVideoCallUrl] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -454,6 +457,25 @@ const Chat = () => {
     return conversations.find(c => c.id === selectedConversation);
   };
 
+  const startVideoCall = () => {
+    setShowVideoCall(true);
+  };
+
+  const handleVideoCallRoomCreated = (roomUrl: string) => {
+    setVideoCallUrl(roomUrl);
+    // You could send the room URL to the other participant via a message
+    if (selectedConversation) {
+      supabase
+        .from('messages')
+        .insert({
+          conversation_id: selectedConversation,
+          sender_id: user?.id,
+          content: `📹 Video call started: ${roomUrl}`,
+          message_type: 'text'
+        });
+    }
+  };
+
   const selectedConv = getCurrentConversation();
 
   return (
@@ -495,13 +517,23 @@ const Chat = () => {
                 </div>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
+            <div className="flex space-x-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={startVideoCall}
+                disabled={!selectedConv?.participants?.some(p => p.user_id !== user?.id)}
+              >
+                <Video className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate('/dashboard')}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
           </>
         ) : (
           <>
@@ -705,7 +737,7 @@ const Chat = () => {
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
                     )}
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h2 className="font-semibold">{getConversationName(selectedConv!)}</h2>
                     {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
                       p.user_id !== user?.id && isUserOnline(p.user_id)
@@ -713,6 +745,15 @@ const Chat = () => {
                       <p className="text-sm text-green-600">Online</p>
                     )}
                   </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={startVideoCall}
+                    disabled={!selectedConv?.participants?.some(p => p.user_id !== user?.id)}
+                  >
+                    <Video className="h-4 w-4 mr-2" />
+                    Video Call
+                  </Button>
                 </div>
               </div>
 
@@ -814,6 +855,13 @@ const Chat = () => {
           )}
         </div>
       </div>
+      
+      <VideoCall
+        isOpen={showVideoCall}
+        onClose={() => setShowVideoCall(false)}
+        roomUrl={videoCallUrl}
+        onRoomCreated={handleVideoCallRoomCreated}
+      />
     </div>
   );
 };
