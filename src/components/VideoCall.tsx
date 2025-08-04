@@ -28,8 +28,9 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
   const createRoom = async () => {
     try {
-      // Create a temporary room (this would normally be done on your backend)
-      const roomName = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // For demo purposes, we'll use a simple room name
+      // In production, you'd create rooms via Daily.co REST API
+      const roomName = `demo-room-${Date.now()}`;
       const tempRoomUrl = `https://lovable.daily.co/${roomName}`;
       
       if (onRoomCreated) {
@@ -52,8 +53,9 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     if (!callFrameRef.current) return;
 
     try {
+      // For demo purposes, we'll create a simple meeting room
       const frame = DailyIframe.createFrame(callFrameRef.current, {
-        showLeaveButton: true,
+        showLeaveButton: false,
         iframeStyle: {
           width: '100%',
           height: '400px',
@@ -92,7 +94,9 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         });
       });
 
-      await frame.join({ url });
+      // Use Daily's demo domain for testing
+      const demoUrl = `https://lovable.daily.co/demo-${Date.now()}`;
+      await frame.join({ url: demoUrl });
       setCallFrame(frame);
       
     } catch (error) {
