@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Image, User, Plus, Settings, LogOut, UserPlus, Menu, ArrowLeft, Video } from 'lucide-react';
+import { Send, Image, User, Plus, Settings, LogOut, UserPlus, Menu, ArrowLeft, Video, MessageCircle } from 'lucide-react';
 import { VideoCall } from '@/components/VideoCall';
 import { Badge } from '@/components/ui/badge';
 
@@ -75,7 +75,7 @@ const Chat = () => {
     if (selectedConversation) {
       fetchMessages();
       subscribeToMessages();
-      setShowSidebar(false); // Hide sidebar on mobile when conversation is selected
+      setShowSidebar(false);
     }
   }, [selectedConversation]);
 
@@ -463,7 +463,6 @@ const Chat = () => {
 
   const handleVideoCallRoomCreated = (roomUrl: string) => {
     setVideoCallUrl(roomUrl);
-    // You could send the room URL to the other participant via a message
     if (selectedConversation) {
       supabase
         .from('messages')
@@ -479,9 +478,9 @@ const Chat = () => {
   const selectedConv = getCurrentConversation();
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-background via-secondary/5 to-primary/5 overflow-hidden">
       {/* Mobile Header */}
-      <div className="lg:hidden border-b border-border bg-background p-3 flex items-center justify-between">
+      <div className="lg:hidden border-b border-primary/20 bg-gradient-to-r from-background via-primary/5 to-secondary/5 backdrop-blur-sm p-4 flex items-center justify-between shadow-lg">
         {selectedConversation ? (
           <>
             <div className="flex items-center space-x-3">
@@ -489,30 +488,33 @@ const Chat = () => {
                 variant="ghost" 
                 size="sm"
                 onClick={() => setSelectedConversation(null)}
-                className="p-1"
+                className="p-2 hover:bg-primary/10 hover:scale-110 transition-all duration-300"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="h-5 w-5 text-primary" />
               </Button>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 <div className="relative">
-                  <Avatar className="h-8 w-8">
+                  <Avatar className="h-10 w-10 border-2 border-primary/20 shadow-lg">
                     <AvatarImage src={selectedConv?.participants?.find(p => p.user_id !== user?.id)?.avatar_url} />
-                    <AvatarFallback>
-                      <User className="h-4 w-4" />
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary font-semibold">
+                      <User className="h-5 w-5" />
                     </AvatarFallback>
                   </Avatar>
                   {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
                     p.user_id !== user?.id && isUserOnline(p.user_id)
                   ) && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background animate-pulse" />
                   )}
                 </div>
                 <div>
-                  <h2 className="font-medium text-sm">{getConversationName(selectedConv!)}</h2>
+                  <h2 className="font-semibold text-foreground">{getConversationName(selectedConv!)}</h2>
                   {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
                     p.user_id !== user?.id && isUserOnline(p.user_id)
                   ) && (
-                    <p className="text-xs text-green-600">Online</p>
+                    <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      Online
+                    </p>
                   )}
                 </div>
               </div>
@@ -523,35 +525,44 @@ const Chat = () => {
                 size="sm"
                 onClick={startVideoCall}
                 disabled={!selectedConv?.participants?.some(p => p.user_id !== user?.id)}
+                className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary"
               >
-                <Video className="h-4 w-4" />
+                <Video className="h-5 w-5" />
               </Button>
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => navigate('/dashboard')}
+                className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary"
               >
-                <Settings className="h-4 w-4" />
+                <Settings className="h-5 w-5" />
               </Button>
             </div>
           </>
         ) : (
           <>
-            <h1 className="text-lg font-semibold">ChatApp</h1>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">C</span>
+              </div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ChatApp</h1>
+            </div>
             <div className="flex items-center space-x-2">
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => navigate('/dashboard')}
+                className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary"
               >
-                <Settings className="h-4 w-4" />
+                <Settings className="h-5 w-5" />
               </Button>
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={handleSignOut}
+                className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </>
@@ -559,108 +570,117 @@ const Chat = () => {
       </div>
 
       {/* Desktop Header */}
-      <div className="hidden lg:block border-b border-border bg-background p-4">
+      <div className="hidden lg:block border-b border-primary/20 bg-gradient-to-r from-background via-primary/5 to-secondary/5 backdrop-blur-sm p-6 shadow-lg">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">ChatApp</h1>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-lg">C</span>
+            </div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ChatApp</h1>
+          </div>
+          <div className="flex items-center space-x-3">
             <Button 
               variant="ghost" 
               size="sm"
               onClick={() => navigate('/dashboard')}
+              className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary"
             >
-              <Settings className="h-4 w-4 mr-2" />
+              <Settings className="h-5 w-5 mr-2" />
               Profile
             </Button>
             <Button 
               variant="ghost" 
               size="sm"
               onClick={handleSignOut}
+              className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive"
             >
-              <LogOut className="h-4 w-4 mr-2" />
+              <LogOut className="h-5 w-5 mr-2" />
               Sign Out
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex bg-background overflow-hidden">
-        {/* Sidebar - Desktop Always Visible, Mobile Conditional */}
+      <div className="flex-1 flex bg-gradient-to-br from-background to-secondary/10 overflow-hidden">
+        {/* Sidebar */}
         <div className={`
-          lg:w-80 lg:block border-r border-border bg-muted/30
+          lg:w-80 lg:block border-r border-primary/20 bg-gradient-to-b from-secondary/20 via-background to-secondary/10 backdrop-blur-sm
           ${selectedConversation ? 'hidden lg:block' : 'w-full block'}
         `}>
-          <div className="p-4 border-b border-border">
+          <div className="p-6 border-b border-primary/20 bg-gradient-to-r from-background to-primary/5">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Conversations</h2>
-              <div className="flex space-x-2">
-                <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline">
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="mx-4">
-                    <DialogHeader>
-                      <DialogTitle>Start a chat with someone</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Input
-                        placeholder="Search users by username or name..."
-                        value={searchUsers}
-                        onChange={(e) => {
-                          setSearchUsers(e.target.value);
-                          searchForUsers(e.target.value);
-                        }}
-                      />
-                      <ScrollArea className="h-60">
-                        <div className="space-y-2">
-                          {foundUsers.map((profile) => (
-                            <Card 
-                              key={profile.id} 
-                              className="cursor-pointer hover:bg-muted"
-                              onClick={() => createConversationWithUser(profile)}
-                            >
-                              <CardContent className="p-3">
-                                <div className="flex items-center space-x-3">
-                                  <div className="relative">
-                                    <Avatar className="h-8 w-8">
-                                      <AvatarImage src={profile.avatar_url} />
-                                      <AvatarFallback>
-                                        <User className="h-4 w-4" />
-                                      </AvatarFallback>
-                                    </Avatar>
+              <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Conversations</h2>
+              <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="border-primary/20 hover:bg-primary/10 hover:scale-110 transition-all duration-300">
+                    <UserPlus className="h-4 w-4 text-primary" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="mx-4 bg-gradient-to-br from-background via-secondary/5 to-primary/5 border-primary/20">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Start a chat with someone</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="Search users by username or name..."
+                      value={searchUsers}
+                      onChange={(e) => {
+                        setSearchUsers(e.target.value);
+                        searchForUsers(e.target.value);
+                      }}
+                      className="border-primary/20 focus:border-primary/40 focus:ring-primary/20"
+                    />
+                    <ScrollArea className="h-60">
+                      <div className="space-y-2">
+                        {foundUsers.map((profile) => (
+                          <Card 
+                            key={profile.id} 
+                            className="cursor-pointer hover:bg-primary/10 hover:scale-105 transition-all duration-300 border-primary/10 bg-gradient-to-r from-background to-secondary/5"
+                            onClick={() => createConversationWithUser(profile)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="relative">
+                                  <Avatar className="h-10 w-10 border-2 border-primary/20 shadow-lg">
+                                    <AvatarImage src={profile.avatar_url} />
+                                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary font-semibold">
+                                      <User className="h-5 w-5" />
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {isUserOnline(profile.user_id) && (
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background animate-pulse" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <p className="font-semibold text-foreground">{profile.display_name}</p>
                                     {isUserOnline(profile.user_id) && (
-                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+                                      <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border border-green-200">Online</Badge>
                                     )}
                                   </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center space-x-2">
-                                      <p className="font-medium">{profile.display_name}</p>
-                                      {isUserOnline(profile.user_id) && (
-                                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">Online</Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">@{profile.username}</p>
-                                  </div>
+                                  <p className="text-sm text-muted-foreground">@{profile.username}</p>
                                 </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                          {searchUsers && foundUsers.length === 0 && (
-                            <p className="text-center text-muted-foreground py-4">
-                              No users found
-                            </p>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                        {searchUsers && foundUsers.length === 0 && (
+                          <div className="text-center py-8">
+                            <User className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                            <p className="text-muted-foreground font-medium">No users found</p>
+                            <p className="text-sm text-muted-foreground">Try searching with a different term</p>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
-          <ScrollArea className="h-[calc(100vh-141px)] lg:h-[calc(100vh-141px)]">
-            <div className="p-2 space-y-2">
+          
+          <ScrollArea className="h-[calc(100vh-200px)]">
+            <div className="p-4 space-y-3">
               {conversations.map((conversation) => {
                 const otherParticipant = conversation.participants?.find(
                   p => p.user_id !== user?.id
@@ -670,39 +690,39 @@ const Chat = () => {
                 return (
                   <Card
                     key={conversation.id}
-                    className={`cursor-pointer transition-colors ${
+                    className={`cursor-pointer transition-all duration-300 hover:scale-105 border-primary/10 ${
                       selectedConversation === conversation.id
-                        ? 'bg-primary/10 border-primary'
-                        : 'hover:bg-muted'
+                        ? 'bg-gradient-to-r from-primary/10 to-secondary/5 border-primary/30 shadow-lg'
+                        : 'hover:bg-primary/5 hover:border-primary/20 bg-gradient-to-r from-background to-secondary/5'
                     }`}
                     onClick={() => setSelectedConversation(conversation.id)}
                   >
-                    <CardContent className="p-3">
+                    <CardContent className="p-4">
                       <div className="flex items-center space-x-3">
                         <div className="relative">
-                          <Avatar className="h-10 w-10">
+                          <Avatar className="h-12 w-12 border-2 border-primary/20 shadow-lg">
                             <AvatarImage src={otherParticipant?.avatar_url} />
-                            <AvatarFallback>
-                              <User className="h-5 w-5" />
+                            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary font-semibold">
+                              <User className="h-6 w-6" />
                             </AvatarFallback>
                           </Avatar>
                           {!conversation.is_group && isOnline && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background animate-pulse" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <h3 className="font-medium truncate">
+                            <h3 className="font-semibold truncate text-foreground text-base">
                               {getConversationName(conversation)}
                             </h3>
                             {!conversation.is_group && isOnline && (
-                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 ml-2">
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border border-green-200 ml-2">
                                 Online
                               </Badge>
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {conversation.is_group ? 'Group Chat' : 'Direct Message'}
+                            {conversation.is_group ? '👥 Group Chat' : '💬 Direct Message'}
                           </p>
                         </div>
                       </div>
@@ -710,46 +730,60 @@ const Chat = () => {
                   </Card>
                 );
               })}
+              
+              {conversations.length === 0 && (
+                <div className="text-center py-12">
+                  <MessageCircle className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+                  <p className="text-muted-foreground font-medium mb-2">No conversations yet</p>
+                  <p className="text-sm text-muted-foreground">Start chatting by adding a new contact</p>
+                </div>
+              )}
             </div>
           </ScrollArea>
         </div>
 
         {/* Chat Area */}
         <div className={`
-          flex-1 flex flex-col
+          flex-1 flex flex-col bg-gradient-to-b from-background to-primary/5
           ${!selectedConversation ? 'hidden lg:flex' : 'flex'}
         `}>
           {selectedConversation ? (
             <>
               {/* Desktop Chat Header */}
-              <div className="hidden lg:block border-b border-border p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={selectedConv?.participants?.find(p => p.user_id !== user?.id)?.avatar_url} />
-                      <AvatarFallback>
-                        <User className="h-5 w-5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
-                      p.user_id !== user?.id && isUserOnline(p.user_id)
-                    ) && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="font-semibold">{getConversationName(selectedConv!)}</h2>
-                    {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
-                      p.user_id !== user?.id && isUserOnline(p.user_id)
-                    ) && (
-                      <p className="text-sm text-green-600">Online</p>
-                    )}
+              <div className="hidden lg:block border-b border-primary/20 p-6 bg-gradient-to-r from-background to-secondary/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      <Avatar className="h-12 w-12 border-2 border-primary/20 shadow-lg">
+                        <AvatarImage src={selectedConv?.participants?.find(p => p.user_id !== user?.id)?.avatar_url} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary font-semibold">
+                          <User className="h-6 w-6" />
+                        </AvatarFallback>
+                      </Avatar>
+                      {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
+                        p.user_id !== user?.id && isUserOnline(p.user_id)
+                      ) && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background animate-pulse" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-lg text-foreground">{getConversationName(selectedConv!)}</h2>
+                      {!selectedConv?.is_group && selectedConv?.participants?.some(p => 
+                        p.user_id !== user?.id && isUserOnline(p.user_id)
+                      ) && (
+                        <p className="text-sm text-green-600 font-medium flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          Online
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <Button 
                     variant="outline" 
                     size="sm"
                     onClick={startVideoCall}
                     disabled={!selectedConv?.participants?.some(p => p.user_id !== user?.id)}
+                    className="border-primary/20 hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary"
                   >
                     <Video className="h-4 w-4 mr-2" />
                     Video Call
@@ -758,8 +792,8 @@ const Chat = () => {
               </div>
 
               {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
+              <ScrollArea className="flex-1 p-6">
+                <div className="space-y-6">
                   {messages.map((message) => (
                     <div
                       key={message.id}
@@ -774,33 +808,33 @@ const Chat = () => {
                             : 'flex-row'
                         }`}
                       >
-                        <Avatar className="h-8 w-8 mx-2 flex-shrink-0">
+                        <Avatar className="h-10 w-10 mx-3 flex-shrink-0 border-2 border-primary/20 shadow-md">
                           <AvatarImage src={message.sender_profile?.avatar_url} />
-                          <AvatarFallback>
-                            <User className="h-4 w-4" />
+                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary font-semibold">
+                            <User className="h-5 w-5" />
                           </AvatarFallback>
                         </Avatar>
                         <div
-                          className={`rounded-lg p-3 ${
+                          className={`rounded-2xl p-4 shadow-lg ${
                             message.sender_id === user?.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted'
+                              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground'
+                              : 'bg-gradient-to-br from-secondary/20 to-secondary/10 border border-primary/10'
                           }`}
                         >
-                          <p className="text-xs opacity-70 mb-1">
+                          <p className="text-xs opacity-70 mb-2 font-medium">
                             {message.sender_profile?.display_name}
                           </p>
                           {message.message_type === 'text' ? (
-                            <p className="break-words">{message.content}</p>
+                            <p className="break-words text-base leading-relaxed">{message.content}</p>
                           ) : (
                             <img
                               src={message.image_url}
                               alt="Shared image"
-                              className="max-w-full max-h-64 h-auto rounded cursor-pointer"
+                              className="max-w-full max-h-80 h-auto rounded-xl cursor-pointer hover:scale-105 transition-transform duration-300 shadow-lg"
                               onClick={() => window.open(message.image_url, '_blank')}
                             />
                           )}
-                          <p className="text-xs opacity-70 mt-1">
+                          <p className="text-xs opacity-70 mt-2 text-right">
                             {new Date(message.created_at).toLocaleTimeString()}
                           </p>
                         </div>
@@ -812,14 +846,14 @@ const Chat = () => {
               </ScrollArea>
 
               {/* Message Input */}
-              <div className="p-4 border-t border-border">
-                <form onSubmit={sendMessage} className="flex items-center space-x-2">
+              <div className="p-6 border-t border-primary/20 bg-gradient-to-r from-background to-secondary/5">
+                <form onSubmit={sendMessage} className="flex items-center space-x-3">
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
                     disabled={isLoading}
-                    className="flex-1"
+                    className="flex-1 border-primary/20 focus:border-primary/40 focus:ring-primary/20 rounded-full py-3 px-5 text-base"
                   />
                   <input
                     ref={fileInputRef}
@@ -834,20 +868,26 @@ const Chat = () => {
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isLoading}
+                    className="border-primary/20 hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary rounded-full"
                   >
-                    <Image className="h-4 w-4" />
+                    <Image className="h-5 w-5" />
                   </Button>
-                  <Button type="submit" disabled={isLoading || !newMessage.trim()}>
-                    <Send className="h-4 w-4" />
+                  <Button 
+                    type="submit" 
+                    disabled={isLoading || !newMessage.trim()}
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/80 hover:to-primary text-white rounded-full px-6 hover:scale-110 transition-all duration-300 shadow-lg"
+                  >
+                    <Send className="h-5 w-5" />
                   </Button>
                 </form>
               </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <h3 className="text-lg font-medium">Select a conversation</h3>
-                <p className="text-muted-foreground">
+              <div className="text-center space-y-4">
+                <MessageCircle className="h-24 w-24 mx-auto text-primary/50" />
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Select a conversation</h3>
+                <p className="text-muted-foreground text-lg">
                   Choose a conversation to start chatting
                 </p>
               </div>
