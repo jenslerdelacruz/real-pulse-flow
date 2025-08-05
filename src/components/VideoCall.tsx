@@ -32,7 +32,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
   const [participants, setParticipants] = useState<any[]>([]);
 
   const createRoom = () => {
-    const roomName = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const roomName = `chatapp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const jitsiRoomUrl = `https://meet.jit.si/${roomName}`;
     
     if (onRoomCreated) {
@@ -171,48 +171,105 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
+      <DialogContent className="max-w-6xl max-h-[90vh] bg-gradient-to-br from-background via-secondary/20 to-primary/5 border-primary/20 shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Video className="h-5 w-5" />
-            Video Call
-            {participants.length > 0 && (
-              <span className="text-sm text-muted-foreground">
-                ({participants.length + 1} participants)
+          <DialogTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Video className="h-6 w-6 text-primary animate-pulse" />
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
+              </div>
+              <span className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Video Call
               </span>
+            </div>
+            {participants.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full animate-fade-in">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-sm font-medium text-primary">
+                  {participants.length + 1} participants
+                </span>
+              </div>
             )}
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
-          <div ref={jitsiContainerRef} className="w-full h-[400px] bg-secondary rounded-lg" />
+        <div className="space-y-6">
+          <div className="relative">
+            <div ref={jitsiContainerRef} className="w-full h-[450px] bg-gradient-to-br from-secondary/50 to-secondary/20 rounded-xl border border-primary/10 shadow-inner overflow-hidden" />
+            {!isJoined && (
+              <div className="absolute inset-0 flex items-center justify-center bg-secondary/80 backdrop-blur-sm rounded-xl">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-primary/20 rounded-full flex items-center justify-center animate-pulse">
+                    <Video className="h-8 w-8 text-primary" />
+                  </div>
+                  <p className="text-lg font-medium text-foreground">Connecting to call...</p>
+                  <div className="flex justify-center">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           
           {isJoined && (
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-4 p-4 bg-secondary/30 rounded-xl backdrop-blur-sm border border-primary/10">
               <Button
                 variant={isCameraOn ? "default" : "destructive"}
-                size="sm"
+                size="lg"
                 onClick={toggleCamera}
+                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-lg"
               >
-                {isCameraOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                {isCameraOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
               </Button>
               
               <Button
                 variant={isMicOn ? "default" : "destructive"}
-                size="sm"
+                size="lg"
                 onClick={toggleMic}
+                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-lg"
               >
-                {isMicOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
               </Button>
               
               <Button
                 variant="destructive"
-                size="sm"
+                size="lg"
                 onClick={leaveCall}
+                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
               >
-                <PhoneOff className="h-4 w-4" />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                <PhoneOff className="h-5 w-5 mr-2" />
                 Leave Call
               </Button>
+            </div>
+          )}
+          
+          {roomUrl && (
+            <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 animate-fade-in">
+              <p className="text-sm text-muted-foreground mb-2">Share this link to invite others:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 p-2 bg-secondary rounded text-sm font-mono break-all">{roomUrl}</code>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(roomUrl);
+                    toast({
+                      title: "Link copied!",
+                      description: "Invite link copied to clipboard",
+                    });
+                  }}
+                  className="hover:scale-105 transition-transform duration-200"
+                >
+                  Copy
+                </Button>
+              </div>
             </div>
           )}
         </div>
