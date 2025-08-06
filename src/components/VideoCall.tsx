@@ -49,7 +49,6 @@ export const VideoCall: React.FC<VideoCallProps> = ({
       return;
     }
 
-    // Load Jitsi Meet API script if not already loaded
     if (!window.JitsiMeetExternalAPI) {
       console.log('Loading Jitsi Meet API script...');
       const script = document.createElement('script');
@@ -81,72 +80,43 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     }
     if (!window.JitsiMeetExternalAPI) {
       console.error('Jitsi API not available when starting meeting');
+      toast({
+        title: "Error",
+        description: "Jitsi API could not be loaded. Please try again.",
+        variant: "destructive"
+      });
       return;
     }
 
-    const options = {
-      roomName: roomName,
-      width: '100%',
-      height: 400,
-      parentNode: jitsiContainerRef.current,
-      configOverwrite: {
-        startWithAudioMuted: false,
-        startWithVideoMuted: false,
-        enableWelcomePage: false,
-        prejoinPageEnabled: false,
-        requireDisplayName: false,
-        // Disable features that cause policy warnings
-        enableLobbyChat: false,
-        enableInsecureRoomNameWarning: false,
-        disableModeratorIndicator: true,
-        startScreenSharing: false,
-        enableEmailInStats: false,
-        enableClosePage: false,
-        disableProfile: true,
-        hideLobbyButton: true,
-        enableAutomaticUrlCopy: false,
-        disableDeepLinking: true,
-        // Simplify audio/video settings to avoid errors
-        enableNoAudioDetection: false,
-        enableNoisyMicDetection: false,
-        // Guest access settings
-        enableUserRolesBasedOnToken: false,
-        enableFeaturesBasedOnToken: false,
-        enableLobby: false,
-        enableBreakoutRooms: false,
-        hideConferenceSubject: true,
-        hideConferenceTimer: false,
-        hideParticipantsStats: true,
-        // Disable localStorage-dependent features
-        localStorageContentExpire: false,
-      },
-      interfaceConfigOverwrite: {
-        TOOLBAR_BUTTONS: [
-          'microphone', 'camera', 'hangup', 'chat', 'filmstrip'
-        ],
-        SHOW_JITSI_WATERMARK: false,
-        SHOW_WATERMARK_FOR_GUESTS: false,
-        SHOW_BRAND_WATERMARK: false,
-        SHOW_POWERED_BY: false,
-        GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
-        DISPLAY_WELCOME_PAGE_CONTENT: false,
-        APP_NAME: 'Chat Video Call',
-        LANG_DETECTION: false,
-        CONNECTION_INDICATOR_DISABLED: false,
-        VIDEO_QUALITY_LABEL_DISABLED: false,
-        RECENT_LIST_ENABLED: false,
-        SETTINGS_SECTIONS: ['devices'],
-        DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-        DISABLE_PRESENCE_STATUS: false,
-        DISABLE_FOCUS_INDICATOR: false,
-        DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
-      },
-      userInfo: {
-        displayName: `User-${Math.random().toString(36).substr(2, 5)}`
-      }
-    };
-
     try {
+      const options = {
+        roomName: roomName,
+        width: '100%',
+        height: 400,
+        parentNode: jitsiContainerRef.current,
+        configOverwrite: {
+          startWithAudioMuted: false,
+          startWithVideoMuted: false,
+          prejoinPageEnabled: false,
+          enableWelcomePage: false,
+          disableDeepLinking: true,
+        },
+        interfaceConfigOverwrite: {
+          TOOLBAR_BUTTONS: [
+            'microphone', 'camera', 'hangup', 'chat', 'filmstrip', 'tileview'
+          ],
+          SHOW_JITSI_WATERMARK: false,
+          SHOW_WATERMARK_FOR_GUESTS: false,
+          SHOW_BRAND_WATERMARK: false,
+          SHOW_POWERED_BY: false,
+          SETTINGS_SECTIONS: ['devices'],
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+        },
+        userInfo: {
+          displayName: `User-${Math.random().toString(36).substr(2, 5)}`
+        }
+      };
+      
       console.log('Creating Jitsi API with options:', options);
       const jitsiApi = new window.JitsiMeetExternalAPI('meet.jit.si', options);
       console.log('Jitsi API created successfully');
@@ -233,7 +203,6 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     if (isOpen) {
       let roomName: string;
       if (roomUrl) {
-        // Extract room name from Jitsi URL
         const urlParts = roomUrl.split('/');
         roomName = urlParts[urlParts.length - 1];
       } else {
