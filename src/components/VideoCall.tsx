@@ -43,24 +43,46 @@ export const VideoCall: React.FC<VideoCallProps> = ({
   };
 
   const initJitsi = (roomName: string) => {
-    if (!jitsiContainerRef.current) return;
+    console.log('Initializing Jitsi with room:', roomName);
+    if (!jitsiContainerRef.current) {
+      console.error('Jitsi container ref not found');
+      return;
+    }
 
     // Load Jitsi Meet API script if not already loaded
     if (!window.JitsiMeetExternalAPI) {
+      console.log('Loading Jitsi Meet API script...');
       const script = document.createElement('script');
       script.src = 'https://meet.jit.si/external_api.js';
       script.async = true;
       script.onload = () => {
+        console.log('Jitsi script loaded successfully');
         startJitsiMeeting(roomName);
+      };
+      script.onerror = (error) => {
+        console.error('Failed to load Jitsi script:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load video call. Please check your internet connection.",
+        });
       };
       document.head.appendChild(script);
     } else {
+      console.log('Jitsi API already available');
       startJitsiMeeting(roomName);
     }
   };
 
   const startJitsiMeeting = (roomName: string) => {
-    if (!jitsiContainerRef.current || !window.JitsiMeetExternalAPI) return;
+    console.log('Starting Jitsi meeting with room:', roomName);
+    if (!jitsiContainerRef.current) {
+      console.error('Container not found when starting meeting');
+      return;
+    }
+    if (!window.JitsiMeetExternalAPI) {
+      console.error('Jitsi API not available when starting meeting');
+      return;
+    }
 
     const options = {
       roomName: roomName,
@@ -148,7 +170,9 @@ export const VideoCall: React.FC<VideoCallProps> = ({
       }
     };
 
+    console.log('Creating Jitsi API with options:', options);
     const jitsiApi = new window.JitsiMeetExternalAPI('meet.jit.si', options);
+    console.log('Jitsi API created successfully');
     
     jitsiApi.addEventListener('participantJoined', (participant: any) => {
       setParticipants(prev => [...prev, participant]);

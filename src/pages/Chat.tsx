@@ -481,6 +481,9 @@ const Chat = () => {
   };
 
   const startVideoCall = () => {
+    console.log('Starting video call...');
+    console.log('Selected conversation:', selectedConversation);
+    console.log('User:', user);
     setShowVideoCall(true);
   };
 
