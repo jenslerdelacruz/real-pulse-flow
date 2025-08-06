@@ -95,6 +95,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         enableWelcomePage: false,
         prejoinPageEnabled: false,
         requireDisplayName: false,
+        // Disable features that cause policy warnings
         enableLobbyChat: false,
         enableInsecureRoomNameWarning: false,
         disableModeratorIndicator: true,
@@ -104,113 +105,107 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         disableProfile: true,
         hideLobbyButton: true,
         enableAutomaticUrlCopy: false,
-        enableLipSync: false,
         disableDeepLinking: true,
+        // Simplify audio/video settings to avoid errors
         enableNoAudioDetection: false,
         enableNoisyMicDetection: false,
-        enableOpusRed: false,
-        enableTalkWhileMuted: false,
-        disableAGC: false,
-        disableAP: false,
-        disableAEC: false,
-        disableNS: false,
-        disableHPF: false,
-        stereo: false,
-        forceJVB121Ratio: -1,
-        enableLayerSuspension: false,
-        videoQuality: {
-          disabledCodec: '',
-          preferredCodec: 'VP8',
-          maxBitratesVideo: {
-            low: 200000,
-            standard: 500000,
-            high: 1500000
-          }
-        },
-        // These are crucial for guest access without authentication
+        // Guest access settings
         enableUserRolesBasedOnToken: false,
         enableFeaturesBasedOnToken: false,
         enableLobby: false,
-        moderatedRoomServiceUrl: '',
         enableBreakoutRooms: false,
         hideConferenceSubject: true,
         hideConferenceTimer: false,
         hideParticipantsStats: true,
+        // Disable localStorage-dependent features
+        localStorageContentExpire: false,
       },
       interfaceConfigOverwrite: {
         TOOLBAR_BUTTONS: [
-          'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-          'fodeviceselection', 'hangup', 'chat', 'raisehand',
-          'videoquality', 'filmstrip', 'invite', 'tileview', 'shortcuts'
+          'microphone', 'camera', 'hangup', 'chat', 'filmstrip'
         ],
         SHOW_JITSI_WATERMARK: false,
         SHOW_WATERMARK_FOR_GUESTS: false,
         SHOW_BRAND_WATERMARK: false,
-        BRAND_WATERMARK_LINK: '',
         SHOW_POWERED_BY: false,
         GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
         DISPLAY_WELCOME_PAGE_CONTENT: false,
-        DISPLAY_WELCOME_PAGE_TOOLBAR_ADDITIONAL_CONTENT: false,
         APP_NAME: 'Chat Video Call',
         LANG_DETECTION: false,
         CONNECTION_INDICATOR_DISABLED: false,
         VIDEO_QUALITY_LABEL_DISABLED: false,
         RECENT_LIST_ENABLED: false,
-        // Hide authentication related UI elements
-        SETTINGS_SECTIONS: ['devices', 'language'],
-        // Disable profile and authentication features
+        SETTINGS_SECTIONS: ['devices'],
         DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
         DISABLE_PRESENCE_STATUS: false,
         DISABLE_FOCUS_INDICATOR: false,
         DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
       },
-      // Add userInfo to avoid authentication prompts
       userInfo: {
         displayName: `User-${Math.random().toString(36).substr(2, 5)}`
       }
     };
 
-    console.log('Creating Jitsi API with options:', options);
-    const jitsiApi = new window.JitsiMeetExternalAPI('meet.jit.si', options);
-    console.log('Jitsi API created successfully');
-    
-    jitsiApi.addEventListener('participantJoined', (participant: any) => {
-      setParticipants(prev => [...prev, participant]);
-      if (!isJoined) {
+    try {
+      console.log('Creating Jitsi API with options:', options);
+      const jitsiApi = new window.JitsiMeetExternalAPI('meet.jit.si', options);
+      console.log('Jitsi API created successfully');
+      
+      jitsiApi.addEventListener('participantJoined', (participant: any) => {
+        console.log('Participant joined:', participant);
+        setParticipants(prev => [...prev, participant]);
+        if (!isJoined) {
+          setIsJoined(true);
+          toast({
+            title: "Joined call",
+            description: "You've successfully joined the video call",
+          });
+        }
+      });
+
+      jitsiApi.addEventListener('participantLeft', (participant: any) => {
+        console.log('Participant left:', participant);
+        setParticipants(prev => prev.filter(p => p.id !== participant.id));
+      });
+
+      jitsiApi.addEventListener('videoConferenceJoined', () => {
+        console.log('Video conference joined successfully');
         setIsJoined(true);
         toast({
           title: "Joined call",
           description: "You've successfully joined the video call",
         });
-      }
-    });
-
-    jitsiApi.addEventListener('participantLeft', (participant: any) => {
-      setParticipants(prev => prev.filter(p => p.id !== participant.id));
-    });
-
-    jitsiApi.addEventListener('videoConferenceJoined', () => {
-      setIsJoined(true);
-      toast({
-        title: "Joined call",
-        description: "You've successfully joined the video call",
       });
-    });
 
-    jitsiApi.addEventListener('videoConferenceLeft', () => {
-      setIsJoined(false);
-      onClose();
-    });
+      jitsiApi.addEventListener('videoConferenceLeft', () => {
+        console.log('Video conference left');
+        setIsJoined(false);
+        onClose();
+      });
 
-    jitsiApi.addEventListener('audioMuteStatusChanged', (event: any) => {
-      setIsMicOn(!event.muted);
-    });
+      jitsiApi.addEventListener('audioMuteStatusChanged', (event: any) => {
+        setIsMicOn(!event.muted);
+      });
 
-    jitsiApi.addEventListener('videoMuteStatusChanged', (event: any) => {
-      setIsCameraOn(!event.muted);
-    });
+      jitsiApi.addEventListener('videoMuteStatusChanged', (event: any) => {
+        setIsCameraOn(!event.muted);
+      });
 
-    setApi(jitsiApi);
+      jitsiApi.addEventListener('readyToClose', () => {
+        console.log('Jitsi ready to close');
+        setIsJoined(false);
+        onClose();
+      });
+
+      setApi(jitsiApi);
+    } catch (error) {
+      console.error('Error creating Jitsi API:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize video call. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const leaveCall = () => {
