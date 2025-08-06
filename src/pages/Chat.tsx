@@ -243,8 +243,31 @@ const Chat = () => {
           table: 'messages',
           filter: `conversation_id=eq.${selectedConversation}`
         },
-        (payload) => {
-          fetchMessages(); // Refetch to get profile data
+        async (payload) => {
+          // Get the new message with profile data immediately
+          const newMessage = payload.new as any;
+          
+          // Fetch sender profile
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, avatar_url')
+            .eq('user_id', newMessage.sender_id)
+            .single();
+
+          const messageWithProfile: Message = {
+            ...newMessage,
+            message_type: newMessage.message_type as 'text' | 'image',
+            sender_profile: profileData
+          };
+
+          // Add the new message to the current messages array
+          setMessages(prevMessages => {
+            // Check if message already exists to avoid duplicates
+            const exists = prevMessages.some(msg => msg.id === messageWithProfile.id);
+            if (exists) return prevMessages;
+            
+            return [...prevMessages, messageWithProfile];
+          });
         }
       )
       .subscribe();

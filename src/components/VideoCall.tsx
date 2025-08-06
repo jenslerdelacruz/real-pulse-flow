@@ -72,17 +72,79 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         startWithVideoMuted: false,
         enableWelcomePage: false,
         prejoinPageEnabled: false,
+        requireDisplayName: false,
+        enableLobbyChat: false,
+        enableInsecureRoomNameWarning: false,
+        disableModeratorIndicator: true,
+        startScreenSharing: false,
+        enableEmailInStats: false,
+        enableClosePage: false,
+        disableProfile: true,
+        hideLobbyButton: true,
+        enableAutomaticUrlCopy: false,
+        enableLipSync: false,
+        disableDeepLinking: true,
+        enableNoAudioDetection: false,
+        enableNoisyMicDetection: false,
+        enableOpusRed: false,
+        enableTalkWhileMuted: false,
+        disableAGC: false,
+        disableAP: false,
+        disableAEC: false,
+        disableNS: false,
+        disableHPF: false,
+        stereo: false,
+        forceJVB121Ratio: -1,
+        enableLayerSuspension: false,
+        videoQuality: {
+          disabledCodec: '',
+          preferredCodec: 'VP8',
+          maxBitratesVideo: {
+            low: 200000,
+            standard: 500000,
+            high: 1500000
+          }
+        },
+        // These are crucial for guest access without authentication
+        enableUserRolesBasedOnToken: false,
+        enableFeaturesBasedOnToken: false,
+        enableLobby: false,
+        moderatedRoomServiceUrl: '',
+        enableBreakoutRooms: false,
+        hideConferenceSubject: true,
+        hideConferenceTimer: false,
+        hideParticipantsStats: true,
       },
       interfaceConfigOverwrite: {
         TOOLBAR_BUTTONS: [
           'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-          'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
-          'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
-          'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
-          'tileview', 'download', 'help', 'mute-everyone', 'security'
+          'fodeviceselection', 'hangup', 'chat', 'raisehand',
+          'videoquality', 'filmstrip', 'invite', 'tileview', 'shortcuts'
         ],
         SHOW_JITSI_WATERMARK: false,
         SHOW_WATERMARK_FOR_GUESTS: false,
+        SHOW_BRAND_WATERMARK: false,
+        BRAND_WATERMARK_LINK: '',
+        SHOW_POWERED_BY: false,
+        GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
+        DISPLAY_WELCOME_PAGE_CONTENT: false,
+        DISPLAY_WELCOME_PAGE_TOOLBAR_ADDITIONAL_CONTENT: false,
+        APP_NAME: 'Chat Video Call',
+        LANG_DETECTION: false,
+        CONNECTION_INDICATOR_DISABLED: false,
+        VIDEO_QUALITY_LABEL_DISABLED: false,
+        RECENT_LIST_ENABLED: false,
+        // Hide authentication related UI elements
+        SETTINGS_SECTIONS: ['devices', 'language'],
+        // Disable profile and authentication features
+        DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+        DISABLE_PRESENCE_STATUS: false,
+        DISABLE_FOCUS_INDICATOR: false,
+        DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
+      },
+      // Add userInfo to avoid authentication prompts
+      userInfo: {
+        displayName: `User-${Math.random().toString(36).substr(2, 5)}`
       }
     };
 
