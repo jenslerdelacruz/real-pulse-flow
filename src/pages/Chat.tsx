@@ -50,6 +50,7 @@ interface IncomingCall {
   roomUrl: string;
   caller: Profile;
   conversationId: string;
+  callId?: string;
 }
 
 const Chat = () => {
@@ -73,6 +74,7 @@ const Chat = () => {
   // ----- State para sa Incoming Call -----
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const [callEndChannel, setCallEndChannel] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -150,7 +152,26 @@ const Chat = () => {
         console.log('Incoming call received:', payload);
         if (payload.caller.user_id !== user.id) {
           setIncomingCall(payload);
+          // Auto dismiss after 30 seconds if not answered
+          setTimeout(() => {
+            setIncomingCall(prev => {
+              if (prev && prev.callId === payload.callId) {
+                toast({
+                  title: "📞 Missed Call",
+                  description: `You missed a call from ${payload.caller.display_name}`,
+                  variant: "default"
+                });
+                return null;
+              }
+              return prev;
+            });
+          }, 30000);
         }
+      })
+      .on('broadcast', { event: 'call_ended' }, ({ payload }) => {
+        console.log('Call ended signal received:', payload);
+        setIncomingCall(null);
+        setShowVideoCall(false);
       })
       .subscribe();
 
@@ -335,11 +356,24 @@ const Chat = () => {
     }
     const roomName = `chatapp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const jitsiRoomUrl = `https://meet.jit.si/${roomName}`;
+    const callId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     setVideoCallUrl(jitsiRoomUrl);
     setShowVideoCall(true);
+    
+    // Send call to all participants
     for (const participant of otherParticipants) {
       const channel = supabase.channel(`calls-${participant.user_id}`);
-      await channel.send({ type: 'broadcast', event: 'incoming_call', payload: { roomUrl: jitsiRoomUrl, caller: userProfile, conversationId: selectedConversation } });
+      await channel.send({ 
+        type: 'broadcast', 
+        event: 'incoming_call', 
+        payload: { 
+          roomUrl: jitsiRoomUrl, 
+          caller: userProfile, 
+          conversationId: selectedConversation,
+          callId: callId
+        } 
+      });
     }
     await supabase.from('messages').insert({ conversation_id: selectedConversation, sender_id: user.id, content: `Started a video call.`, message_type: 'call_info'});
   };
@@ -354,6 +388,30 @@ const Chat = () => {
   };
 
   const declineCall = () => {
+    setIncomingCall(null);
+  };
+
+  const endCall = async () => {
+    if (!selectedConversation || !user) return;
+    
+    const currentConv = getCurrentConversation();
+    const otherParticipants = currentConv?.participants?.filter(p => p.user_id !== user.id);
+    
+    // Send end call signal to all participants
+    for (const participant of otherParticipants || []) {
+      const channel = supabase.channel(`calls-${participant.user_id}`);
+      await channel.send({ 
+        type: 'broadcast', 
+        event: 'call_ended', 
+        payload: { 
+          callerId: user.id,
+          conversationId: selectedConversation
+        } 
+      });
+    }
+    
+    setShowVideoCall(false);
+    setVideoCallUrl('');
     setIncomingCall(null);
   };
 
@@ -652,23 +710,50 @@ const Chat = () => {
       
       {/* Incoming Call Dialog */}
       <Dialog open={!!incomingCall} onOpenChange={() => setIncomingCall(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-center text-2xl">Incoming Call</DialogTitle>
+        <DialogContent className="w-[95vw] max-w-md mx-auto bg-gradient-to-br from-background via-secondary/5 to-primary/5 border-2 border-primary/30 shadow-2xl backdrop-blur-xl rounded-2xl">
+          <DialogHeader className="text-center pb-4">
+            <DialogTitle className="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">📞 Incoming Call</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center p-6 space-y-4">
-            <Avatar className="h-24 w-24 border-4 border-primary">
-              <AvatarImage src={incomingCall?.caller?.avatar_url} />
-              <AvatarFallback><User className="h-12 w-12" /></AvatarFallback>
-            </Avatar>
-            <p className="text-xl font-semibold">{incomingCall?.caller?.display_name || 'Someone'} is calling...</p>
+          <div className="flex flex-col items-center justify-center p-4 md:p-6 space-y-4 md:space-y-6">
+            <div className="relative">
+              <Avatar className="h-20 w-20 md:h-24 md:w-24 border-4 border-primary/30 shadow-2xl animate-pulse">
+                <AvatarImage src={incomingCall?.caller?.avatar_url} />
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary">
+                  <User className="h-10 w-10 md:h-12 md:w-12" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-lg md:text-xl font-semibold text-foreground">{incomingCall?.caller?.display_name || 'Someone'}</p>
+              <p className="text-sm text-muted-foreground">is calling you...</p>
+            </div>
+            <div className="w-full flex justify-center">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gradient-to-r from-primary to-secondary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <div className="w-2 h-2 bg-gradient-to-r from-primary to-secondary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <div className="w-2 h-2 bg-gradient-to-r from-primary to-secondary rounded-full animate-bounce" />
+              </div>
+            </div>
           </div>
-          <DialogFooter className="flex justify-center gap-4">
-            <Button variant="destructive" size="lg" onClick={declineCall}>
-              <PhoneOff className="mr-2 h-5 w-5" />Decline
+          <DialogFooter className="flex flex-row justify-center gap-3 md:gap-4 pt-4">
+            <Button 
+              variant="destructive" 
+              size="lg" 
+              onClick={declineCall}
+              className="flex-1 md:flex-none bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-2xl h-12 md:h-14 font-semibold shadow-lg hover:scale-105 transition-all duration-300"
+            >
+              <PhoneOff className="mr-2 h-4 w-4 md:h-5 md:w-5" />
+              <span className="text-sm md:text-base">Decline</span>
             </Button>
-            <Button variant="default" size="lg" onClick={acceptCall} className="bg-green-600 hover:bg-green-700">
-              <Phone className="mr-2 h-5 w-5" />Accept
+            <Button 
+              variant="default" 
+              size="lg" 
+              onClick={acceptCall} 
+              className="flex-1 md:flex-none bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-2xl h-12 md:h-14 font-semibold shadow-lg hover:scale-105 transition-all duration-300"
+            >
+              <Phone className="mr-2 h-4 w-4 md:h-5 md:w-5" />
+              <span className="text-sm md:text-base">Accept</span>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -677,7 +762,7 @@ const Chat = () => {
       {/* VideoCall Component */}
       <VideoCall
         isOpen={showVideoCall}
-        onClose={() => setShowVideoCall(false)}
+        onClose={endCall}
         roomUrl={videoCallUrl}
       />
     </div>
