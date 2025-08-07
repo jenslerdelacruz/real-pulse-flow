@@ -49,6 +49,9 @@ export const VideoCall: React.FC<VideoCallProps> = ({
       return;
     }
 
+    // Set joined state to true immediately to hide connecting screen
+    setIsJoined(true);
+
     if (!window.JitsiMeetExternalAPI) {
       console.log('Loading Jitsi Meet API script...');
       const script = document.createElement('script');
@@ -60,9 +63,11 @@ export const VideoCall: React.FC<VideoCallProps> = ({
       };
       script.onerror = (error) => {
         console.error('Failed to load Jitsi script:', error);
+        setIsJoined(false);
         toast({
           title: "Error",
           description: "Failed to load video call. Please check your internet connection.",
+          variant: "destructive"
         });
       };
       document.head.appendChild(script);
@@ -221,23 +226,37 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] bg-gradient-to-br from-background via-secondary/20 to-primary/5 border-primary/20 shadow-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-7xl max-h-[95vh] bg-gradient-to-br from-background via-background/95 to-primary/5 border-2 border-primary/30 shadow-2xl backdrop-blur-xl rounded-3xl overflow-hidden">
+        <DialogHeader className="space-y-4 pb-2">
           <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Video className="h-6 w-6 text-primary animate-pulse" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
+            <div className="flex items-center gap-4">
+              <div className="relative p-3 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl shadow-lg">
+                <Video className="h-6 w-6 text-primary" />
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-green-500 rounded-full animate-pulse shadow-lg" />
               </div>
-              <span className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Video Call
-              </span>
+              <div>
+                <span className="text-2xl font-bold bg-gradient-to-r from-primary via-primary/80 to-secondary bg-clip-text text-transparent">
+                  Video Call
+                </span>
+                <p className="text-sm text-muted-foreground mt-1">High-quality video conference</p>
+              </div>
             </div>
             {participants.length > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full animate-fade-in">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-sm font-medium text-primary">
-                  {participants.length + 1} participants
+              <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-full border border-green-500/20 animate-fade-in">
+                <div className="flex -space-x-2">
+                  {Array.from({ length: Math.min(participants.length + 1, 3) }).map((_, i) => (
+                    <div key={i} className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full border-2 border-background flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                      {i + 1}
+                    </div>
+                  ))}
+                  {participants.length > 2 && (
+                    <div className="w-8 h-8 bg-gradient-to-br from-muted to-muted/80 rounded-full border-2 border-background flex items-center justify-center text-xs font-bold text-foreground shadow-lg">
+                      +{participants.length - 2}
+                    </div>
+                  )}
+                </div>
+                <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                  {participants.length + 1} online
                 </span>
               </div>
             )}
@@ -245,20 +264,28 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         </DialogHeader>
         
         <div className="space-y-6">
-          <div className="relative">
-            <div ref={jitsiContainerRef} className="w-full h-[450px] bg-gradient-to-br from-secondary/50 to-secondary/20 rounded-xl border border-primary/10 shadow-inner overflow-hidden" />
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-secondary/30 to-background border-2 border-primary/20 shadow-2xl">
+            <div ref={jitsiContainerRef} className="w-full h-[500px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl overflow-hidden" />
             {!isJoined && (
-              <div className="absolute inset-0 flex items-center justify-center bg-secondary/80 backdrop-blur-sm rounded-xl">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto bg-primary/20 rounded-full flex items-center justify-center animate-pulse">
-                    <Video className="h-8 w-8 text-primary" />
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-background/95 via-background/90 to-primary/10 backdrop-blur-lg rounded-2xl">
+                <div className="text-center space-y-6">
+                  <div className="relative">
+                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary/30 to-secondary/30 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
+                      <Video className="h-12 w-12 text-primary" />
+                    </div>
+                    <div className="absolute inset-0 w-24 h-24 mx-auto rounded-full border-4 border-primary/30 animate-ping" />
                   </div>
-                  <p className="text-lg font-medium text-foreground">Connecting to call...</p>
+                  <div className="space-y-3">
+                    <p className="text-xl font-bold text-foreground">Connecting to call...</p>
+                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                      Please wait while we establish the connection. This may take a few moments.
+                    </p>
+                  </div>
                   <div className="flex justify-center">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                    <div className="flex space-x-2">
+                      <div className="w-3 h-3 bg-gradient-to-r from-primary to-secondary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-3 h-3 bg-gradient-to-r from-primary to-secondary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-3 h-3 bg-gradient-to-r from-primary to-secondary rounded-full animate-bounce" />
                     </div>
                   </div>
                 </div>
@@ -267,57 +294,75 @@ export const VideoCall: React.FC<VideoCallProps> = ({
           </div>
           
           {isJoined && (
-            <div className="flex justify-center gap-4 p-4 bg-secondary/30 rounded-xl backdrop-blur-sm border border-primary/10">
+            <div className="flex justify-center gap-4 p-6 bg-gradient-to-r from-secondary/20 via-background/50 to-secondary/20 rounded-2xl backdrop-blur-sm border border-primary/20 shadow-xl">
               <Button
                 variant={isCameraOn ? "default" : "destructive"}
                 size="lg"
                 onClick={toggleCamera}
-                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-lg"
+                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-xl h-14 px-6 rounded-2xl font-semibold"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                {isCameraOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+                <div className="flex items-center gap-2">
+                  {isCameraOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
+                  <span className="hidden sm:inline">{isCameraOn ? 'Camera On' : 'Camera Off'}</span>
+                </div>
               </Button>
               
               <Button
                 variant={isMicOn ? "default" : "destructive"}
                 size="lg"
                 onClick={toggleMic}
-                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-lg"
+                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-xl h-14 px-6 rounded-2xl font-semibold"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+                <div className="flex items-center gap-2">
+                  {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
+                  <span className="hidden sm:inline">{isMicOn ? 'Mic On' : 'Mic Off'}</span>
+                </div>
               </Button>
               
               <Button
                 variant="destructive"
                 size="lg"
                 onClick={leaveCall}
-                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
+                className="relative overflow-hidden group hover:scale-110 transition-all duration-300 shadow-xl bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:to-red-800 h-14 px-6 rounded-2xl font-semibold"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                <PhoneOff className="h-5 w-5 mr-2" />
-                Leave Call
+                <div className="flex items-center gap-2">
+                  <PhoneOff className="h-6 w-6" />
+                  <span>Leave Call</span>
+                </div>
               </Button>
             </div>
           )}
           
           {roomUrl && (
-            <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 animate-fade-in">
-              <p className="text-sm text-muted-foreground mb-2">Share this link to invite others:</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 p-2 bg-secondary rounded text-sm font-mono break-all">{roomUrl}</code>
+            <div className="p-6 bg-gradient-to-r from-primary/5 via-background/50 to-secondary/5 rounded-2xl border border-primary/30 animate-fade-in shadow-lg">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground mb-1">Invite Others</p>
+                  <p className="text-sm text-muted-foreground">Share this link to invite others to join the call</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-xl border border-primary/20">
+                <code className="flex-1 p-3 bg-background/80 rounded-lg text-sm font-mono break-all border border-primary/10 text-foreground">{roomUrl}</code>
                 <Button
                   size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(roomUrl);
                     toast({
-                      title: "Link copied!",
-                      description: "Invite link copied to clipboard",
+                      title: "✅ Link copied!",
+                      description: "Invite link copied to clipboard successfully",
                     });
                   }}
-                  className="hover:scale-105 transition-transform duration-200"
+                  className="hover:scale-105 transition-transform duration-200 px-4 py-2 rounded-lg font-medium shadow-md"
                 >
-                  Copy
+                  Copy Link
                 </Button>
               </div>
             </div>

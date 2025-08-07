@@ -555,21 +555,47 @@ const Chat = () => {
                     </Button>
                   </div>
                 </div>
-                <ScrollArea className="flex-1 p-6">
-                  <div className="space-y-6">
+                <ScrollArea className="flex-1 p-6 bg-gradient-to-b from-background/50 to-secondary/5">
+                  <div className="space-y-4">
                     {messages.map((message) => (
-                      <div key={message.id} className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`flex max-w-[85%] sm:max-w-[70%] ${message.sender_id === user?.id ? 'flex-row-reverse' : 'flex-row'}`}>
-                          <Avatar className="h-10 w-10 mx-3 flex-shrink-0 border-2 border-primary/20 shadow-md">
+                      <div key={message.id} className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                        <div className={`flex max-w-[85%] sm:max-w-[70%] ${message.sender_id === user?.id ? 'flex-row-reverse' : 'flex-row'} group`}>
+                          <Avatar className="h-11 w-11 mx-3 flex-shrink-0 border-3 border-primary/30 shadow-xl hover:scale-110 transition-all duration-300">
                             <AvatarImage src={message.sender_profile?.avatar_url} />
-                            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-primary font-semibold"><User className="h-5 w-5" /></AvatarFallback>
+                            <AvatarFallback className="bg-gradient-to-br from-primary/30 to-secondary/30 text-primary font-bold text-lg"><User className="h-6 w-6" /></AvatarFallback>
                           </Avatar>
-                          <div className={`rounded-2xl p-4 shadow-lg ${message.sender_id === user?.id ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground' : 'bg-gradient-to-br from-secondary/20 to-secondary/10 border border-primary/10'}`}>
-                            <p className="text-xs opacity-70 mb-2 font-medium">{message.sender_profile?.display_name}</p>
-                            {message.message_type === 'text' && <p className="break-words text-base leading-relaxed">{message.content}</p>}
-                            {message.message_type === 'image' && <img src={message.image_url!} alt="Shared" className="max-w-full max-h-80 h-auto rounded-xl cursor-pointer hover:scale-105 transition-transform duration-300 shadow-lg" onClick={() => window.open(message.image_url!, '_blank')} />}
-                            {message.message_type === 'call_info' && <p className="text-sm italic text-center opacity-80">{message.content}</p>}
-                            <p className="text-xs opacity-70 mt-2 text-right">{new Date(message.created_at).toLocaleTimeString()}</p>
+                          <div className={`relative rounded-3xl p-5 shadow-xl backdrop-blur-sm border-2 hover:scale-[1.02] transition-all duration-300 ${
+                            message.sender_id === user?.id 
+                              ? 'bg-gradient-to-br from-primary via-primary/90 to-primary/80 text-primary-foreground border-primary/20 shadow-primary/20' 
+                              : 'bg-gradient-to-br from-background via-secondary/10 to-secondary/20 border-primary/20 text-foreground shadow-secondary/20'
+                          }`}>
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="relative z-10">
+                              <div className="flex items-center justify-between mb-3">
+                                <p className="text-xs font-bold opacity-80 tracking-wider uppercase">{message.sender_profile?.display_name}</p>
+                                <p className="text-xs opacity-60">{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                              </div>
+                              {message.message_type === 'text' && (
+                                <p className="break-words text-base leading-relaxed font-medium">{message.content}</p>
+                              )}
+                              {message.message_type === 'image' && (
+                                <div className="relative overflow-hidden rounded-2xl shadow-lg">
+                                  <img 
+                                    src={message.image_url!} 
+                                    alt="Shared" 
+                                    className="max-w-full max-h-80 h-auto cursor-pointer hover:scale-110 transition-all duration-500 rounded-2xl" 
+                                    onClick={() => window.open(message.image_url!, '_blank')} 
+                                  />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 rounded-2xl" />
+                                </div>
+                              )}
+                              {message.message_type === 'call_info' && (
+                                <div className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-2xl border border-primary/30">
+                                  <Video className="h-4 w-4 text-primary" />
+                                  <p className="text-sm font-semibold text-center">{message.content}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -577,12 +603,37 @@ const Chat = () => {
                     <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
-                <div className="p-6 border-t border-primary/20 bg-gradient-to-r from-background to-secondary/5">
-                  <form onSubmit={sendMessage} className="flex items-center space-x-3">
-                    <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." disabled={isLoading} className="flex-1 border-primary/20 focus:border-primary/40 focus:ring-primary/20 rounded-full py-3 px-5 text-base" />
+                <div className="p-6 border-t-2 border-primary/20 bg-gradient-to-r from-background via-secondary/5 to-background backdrop-blur-sm">
+                  <form onSubmit={sendMessage} className="flex items-center space-x-4">
+                    <div className="flex-1 relative">
+                      <Input 
+                        value={newMessage} 
+                        onChange={(e) => setNewMessage(e.target.value)} 
+                        placeholder="Type your message..." 
+                        disabled={isLoading} 
+                        className="w-full border-2 border-primary/30 focus:border-primary/60 focus:ring-4 focus:ring-primary/20 rounded-2xl py-4 px-6 text-base bg-gradient-to-r from-background to-secondary/10 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-300 font-medium placeholder:text-muted-foreground/60" 
+                      />
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/5 to-secondary/5 pointer-events-none opacity-0 hover:opacity-100 transition-opacity duration-300" />
+                    </div>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={uploadImage} className="hidden" />
-                    <Button type="button" size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading} className="border-primary/20 hover:bg-primary/10 hover:scale-110 transition-all duration-300 text-primary rounded-full"><Image className="h-5 w-5" /></Button>
-                    <Button type="submit" disabled={isLoading || !newMessage.trim()} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/80 hover:to-primary text-white rounded-full px-6 hover:scale-110 transition-all duration-300 shadow-lg"><Send className="h-5 w-5" /></Button>
+                    <Button 
+                      type="button" 
+                      size="icon" 
+                      variant="outline" 
+                      onClick={() => fileInputRef.current?.click()} 
+                      disabled={isLoading} 
+                      className="border-2 border-primary/30 hover:bg-primary/20 hover:scale-110 transition-all duration-300 text-primary rounded-2xl h-12 w-12 shadow-lg hover:shadow-xl"
+                    >
+                      <Image className="h-6 w-6" />
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={isLoading || !newMessage.trim()} 
+                      className="bg-gradient-to-r from-primary via-primary/90 to-primary/80 hover:from-primary/90 hover:to-primary text-white rounded-2xl px-8 py-3 hover:scale-110 transition-all duration-300 shadow-xl hover:shadow-2xl font-semibold h-12 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Send className="h-5 w-5 mr-2" />
+                      <span className="hidden sm:inline">Send</span>
+                    </Button>
                   </form>
                 </div>
               </>
