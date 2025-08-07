@@ -323,6 +323,8 @@ const Chat = () => {
 
   const getCurrentConversation = () => conversations.find(c => c.id === selectedConversation);
 
+  const isUserOnline = (userId: string) => onlineUsers.has(userId);
+
   const startVideoCall = async () => {
     if (!selectedConversation || !userProfile || !user) return;
     const currentConv = getCurrentConversation();
