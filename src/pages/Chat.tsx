@@ -302,8 +302,10 @@ const Chat = () => {
 
   const searchForUsers = async (searchTerm: string) => {
     if (!searchTerm.trim() || !user) { setFoundUsers([]); return; }
+    // Sanitize input to prevent ILIKE pattern injection
+    const sanitizedTerm = searchTerm.trim().slice(0, 100).replace(/[%_\\]/g, '\\$&');
     try {
-      const { data, error } = await supabase.from('profiles').select('*').or(`username.ilike.%${searchTerm}%,display_name.ilike.%${searchTerm}%`).neq('user_id', user.id).limit(10);
+      const { data, error } = await supabase.from('profiles').select('*').or(`username.ilike.%${sanitizedTerm}%,display_name.ilike.%${sanitizedTerm}%`).neq('user_id', user.id).limit(10);
       if (error) throw error;
       setFoundUsers(data || []);
     } catch (error: any) {
